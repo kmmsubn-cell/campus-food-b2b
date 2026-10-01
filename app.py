@@ -1,4 +1,5 @@
 import streamlit as st
+from datetime import date
 
 st.set_page_config(page_title="대학 행사 식자재 주문", page_icon="🛒")
 
@@ -19,6 +20,20 @@ PRODUCTS = [
     {"id": 12, "icon": "🥤", "name": "일회용 종이컵", "unit": "1,000개", "price": 15000},
 ]
 
+# ---------- [Task 5] Demo 학생회 고객 데이터 ----------
+# 실제 고객정보가 아닌 가상 데이터. 미주문 고객은 주문금액 0원
+DEMO_CUSTOMERS = [
+    {"school": "부경대학교", "major": "경영학과", "event_type": "축제", "event_date": date(2026, 10, 22), "people": 120, "status": "주문 완료", "amount": 412000},
+    {"school": "부경대학교", "major": "컴퓨터공학과", "event_type": "축제", "event_date": date(2026, 10, 22), "people": 90, "status": "주문 완료", "amount": 298500},
+    {"school": "부경대학교", "major": "식품공학과", "event_type": "축제", "event_date": date(2026, 10, 23), "people": 70, "status": "주문 대기", "amount": 215800},
+    {"school": "부경대학교", "major": "해양학과", "event_type": "축제", "event_date": date(2026, 10, 23), "people": 60, "status": "미주문", "amount": 0},
+    {"school": "부경대학교", "major": "국어국문학과", "event_type": "MT", "event_date": date(2026, 11, 7), "people": 45, "status": "주문 대기", "amount": 168300},
+    {"school": "부경대학교", "major": "물리학과", "event_type": "MT", "event_date": date(2026, 11, 14), "people": 35, "status": "미주문", "amount": 0},
+    {"school": "부산대학교", "major": "경제학과", "event_type": "축제", "event_date": date(2026, 10, 29), "people": 110, "status": "주문 완료", "amount": 365400},
+    {"school": "부산대학교", "major": "기계공학과", "event_type": "축제", "event_date": date(2026, 10, 29), "people": 95, "status": "주문 대기", "amount": 287200},
+    {"school": "부산대학교", "major": "사회학과", "event_type": "축제", "event_date": date(2026, 10, 30), "people": 50, "status": "미주문", "amount": 0},
+]
+
 
 def get_product(product_id):
     """상품 id로 상품 정보를 찾아서 돌려줌"""
@@ -33,6 +48,69 @@ def add_to_cart(product_id):
     cart[product_id] = cart.get(product_id, 0) + 1
 
 
+def show_dashboard():
+    """[Task 5] 유통사 직원용 Dashboard"""
+    st.title("📊 유통사 Dashboard")
+    st.caption("Demo 학생회 데이터와 이번 접속에서 들어온 주문을 함께 보여줍니다.")
+
+    # Demo 고객 + 학생회 화면에서 실제로 들어온 주문을 합침
+    all_orders = DEMO_CUSTOMERS + st.session_state.orders
+
+    # 학교 선택 필터
+    schools = sorted(set(o["school"] for o in all_orders))
+    selected = st.selectbox("학교 선택", ["전체"] + schools)
+    if selected != "전체":
+        all_orders = [o for o in all_orders if o["school"] == selected]
+
+    # 1) 전체 요약 숫자
+    count_done = len([o for o in all_orders if o["status"] == "주문 완료"])
+    count_wait = len([o for o in all_orders if o["status"] == "주문 대기"])
+    count_none = len([o for o in all_orders if o["status"] == "미주문"])
+    total_amount = sum(o["amount"] for o in all_orders)
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("주문 완료", f"{count_done}곳")
+    c2.metric("주문 대기", f"{count_wait}곳")
+    c3.metric("미주문", f"{count_none}곳")
+    c4.metric("현재 주문금액", f"{total_amount:,}원")
+
+    # 2) 대학 + 행사 유형별로 묶어서 집계
+    st.subheader("대학 · 행사 유형별 현황")
+    groups = {}
+    for o in all_orders:
+        key = (o["school"], o["event_type"])  # 예: ("부경대학교", "축제")
+        if key not in groups:
+            groups[key] = {
+                "학교": o["school"], "행사 유형": o["event_type"],
+                "등록 고객": 0, "주문 완료": 0, "주문 대기": 0, "미주문": 0,
+                "현재 주문금액": 0,
+            }
+        g = groups[key]
+        g["등록 고객"] += 1
+        g[o["status"]] += 1  # 해당 상태 칸의 숫자를 1 늘림
+        g["현재 주문금액"] += o["amount"]
+
+    summary_rows = list(groups.values())
+    for row in summary_rows:
+        row["현재 주문금액"] = f"{row['현재 주문금액']:,}원"
+    st.dataframe(summary_rows, hide_index=True)
+
+    # 3) 학생회 고객 목록
+    st.subheader("학생회 고객 목록")
+    customer_rows = []
+    for o in all_orders:
+        customer_rows.append({
+            "학교": o["school"],
+            "학과": o["major"],
+            "행사 유형": o["event_type"],
+            "행사일": str(o["event_date"]),
+            "예상 인원": o["people"],
+            "주문 상태": o["status"],
+            "주문금액": f"{o['amount']:,}원",
+        })
+    st.dataframe(customer_rows, hide_index=True)
+
+
 # 지금 어떤 화면을 보여줄지 기억하는 변수 (처음엔 행사정보 입력 화면)
 if "step" not in st.session_state:
     st.session_state.step = "event"
@@ -44,6 +122,12 @@ if "cart" not in st.session_state:
 # [Task 4] 주문 목록: 주문할 때마다 하나씩 추가 (Task 5 Dashboard에서 사용)
 if "orders" not in st.session_state:
     st.session_state.orders = []
+
+# ---------- [Task 5] 사용자 유형 선택 (왼쪽 사이드바) ----------
+mode = st.sidebar.radio("사용자 선택", ["학생회", "유통사 직원"])
+if mode == "유통사 직원":
+    show_dashboard()
+    st.stop()  # 여기서 멈추고, 아래 학생회 화면은 그리지 않음
 
 # ---------- 화면 1: 행사정보 입력 ----------
 if st.session_state.step == "event":
