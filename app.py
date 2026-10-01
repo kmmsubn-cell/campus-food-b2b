@@ -105,15 +105,38 @@ elif st.session_state.step == "products":
         st.session_state.step = "event"
         st.rerun()
 
-# ---------- [Task 2] 화면 3: 장바구니 (Task 3에서 완성 예정) ----------
+# ---------- [Task 3] 화면 3: 장바구니 ----------
 elif st.session_state.step == "cart":
     st.title("🧺 장바구니")
+    cart = st.session_state.cart
 
-    if len(st.session_state.cart) == 0:
+    if len(cart) == 0:
         st.write("장바구니가 비어 있습니다.")
-    for product_id, qty in st.session_state.cart.items():
-        p = get_product(product_id)
-        st.write(f"{p['icon']} {p['name']} ({p['unit']}) — {qty}개")
+    else:
+        total = 0  # 총 상품금액을 더해갈 변수
+
+        # 반복 중에 상품을 삭제할 수 있도록 list()로 복사해서 반복
+        for product_id, qty in list(cart.items()):
+            p = get_product(product_id)
+            col1, col2, col3 = st.columns([4, 2, 2])
+
+            col1.markdown(f"{p['icon']} **{p['name']}**  \n{p['unit']} · {p['price']:,}원")
+            new_qty = col2.number_input(
+                "수량", min_value=0, value=qty, step=1, key=f"qty_{product_id}"
+            )
+            line_total = p["price"] * new_qty  # 상품별 금액 = 가격 × 수량
+            col3.markdown(f"**{line_total:,}원**")
+            total += line_total
+
+            if new_qty == 0:
+                # 수량을 0으로 만들면 장바구니에서 삭제
+                del cart[product_id]
+                st.rerun()
+            else:
+                cart[product_id] = new_qty
+
+        st.divider()
+        st.subheader(f"총 상품금액: {total:,}원")
 
     if st.button("← 상품 더 담기"):
         st.session_state.step = "products"
