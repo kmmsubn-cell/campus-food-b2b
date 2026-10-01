@@ -41,6 +41,10 @@ if "step" not in st.session_state:
 if "cart" not in st.session_state:
     st.session_state.cart = {}
 
+# [Task 4] 주문 목록: 주문할 때마다 하나씩 추가 (Task 5 Dashboard에서 사용)
+if "orders" not in st.session_state:
+    st.session_state.orders = []
+
 # ---------- 화면 1: 행사정보 입력 ----------
 if st.session_state.step == "event":
     st.title("🎉 행사 정보 입력")
@@ -138,6 +142,78 @@ elif st.session_state.step == "cart":
         st.divider()
         st.subheader(f"총 상품금액: {total:,}원")
 
+        # ---------- [Task 4] 주문 확정 방식 선택 ----------
+        st.subheader("주문 확정 방식")
+        order_type = st.radio(
+            "주문 방식을 선택하세요",
+            ["바로 주문", "추가 혜택 가능성을 위한 주문 확정 대기"],
+        )
+
+        if order_type == "바로 주문":
+            st.caption("현재 주문 내용을 그대로 확정합니다.")
+        else:
+            # 다른 학생회의 구체적인 주문정보는 보여주지 않고, 안내 문구만 표시
+            st.info(
+                "동일 대학 내 주문 수요가 있습니다. "
+                "주문 확정 시점을 조정하면 추가적인 대량 주문 혜택이 적용될 수 있습니다."
+            )
+            st.caption("동의하면 주문이 일정 기간 '주문 대기' 상태로 보류됩니다.")
+
+        if st.button("주문하기", type="primary"):
+            # 선택한 방식에 따라 주문 상태 결정
+            if order_type == "바로 주문":
+                status = "주문 완료"
+            else:
+                status = "주문 대기"
+
+            # 주문 정보를 하나로 묶어서 주문 목록에 추가
+            event = st.session_state.event
+            order = {
+                "school": event["school"],
+                "major": event["major"],
+                "event_type": event["event_type"],
+                "event_date": event["event_date"],
+                "people": event["people"],
+                "status": status,
+                "amount": total,
+                "items": dict(cart),  # 주문 시점의 장바구니를 따로 보관
+            }
+            st.session_state.orders.append(order)
+            st.session_state.last_order = order
+
+            # 장바구니를 비우고 주문 결과 화면으로 이동
+            st.session_state.cart = {}
+            st.session_state.step = "done"
+            st.rerun()
+
     if st.button("← 상품 더 담기"):
         st.session_state.step = "products"
+        st.rerun()
+
+# ---------- [Task 4] 화면 4: 주문 결과 ----------
+elif st.session_state.step == "done":
+    order = st.session_state.last_order
+    st.title("✅ 주문이 접수되었습니다")
+
+    if order["status"] == "주문 완료":
+        st.success("주문이 바로 확정되었습니다.")
+    else:
+        st.warning(
+            "주문이 '주문 대기' 상태로 접수되었습니다. "
+            "유통사가 동일 대학 주문을 집계한 뒤 확정 여부를 안내합니다."
+        )
+
+    st.write(f"학교/학과: {order['school']} {order['major']}")
+    st.write(f"행사: {order['event_type']} · {order['event_date']} · {order['people']}명")
+    st.write(f"주문 상태: **{order['status']}**")
+    st.write(f"주문금액: **{order['amount']:,}원**")
+
+    col1, col2 = st.columns(2)
+    if col1.button("같은 행사로 추가 주문"):
+        # 행사정보는 그대로 두고 상품 화면으로 이동
+        st.session_state.step = "products"
+        st.rerun()
+    if col2.button("다른 학생회로 새 주문"):
+        # 다른 학교·학과로 주문할 때만 행사정보를 새로 입력
+        st.session_state.step = "event"
         st.rerun()
